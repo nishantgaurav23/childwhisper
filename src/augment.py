@@ -7,6 +7,7 @@ mixing classroom noise (RealClass) and babble noise (MUSAN).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -29,7 +30,7 @@ def create_augmentation(
     realclass_max_snr: float = 20.0,
     musan_min_snr: float = 0.0,
     musan_max_snr: float = 15.0,
-) -> callable:
+) -> Callable:
     """Create a noise augmentation pipeline for training.
 
     Probability split:
@@ -69,6 +70,7 @@ def create_augmentation(
                     p=1.0,
                 ),
             ],
+            weights=[5, 2],  # 50% RealClass, 20% MUSAN (when noise applied)
             p=0.7,
         ),
         Gain(min_gain_db=-6, max_gain_db=6, p=0.3),
@@ -87,7 +89,7 @@ def create_noise_only_augmentation(
     min_snr: float = 5.0,
     max_snr: float = 20.0,
     p: float = 1.0,
-) -> callable:
+) -> Callable:
     """Create a single-source noise augmentation (for noisy validation).
 
     Args:

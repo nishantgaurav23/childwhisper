@@ -262,7 +262,7 @@ class TestRunDryRun:
         """Dry run should produce a valid submission.jsonl with mock data."""
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "utterance_metadata.jsonl").write_text(
+        (data_dir / "train_word_transcripts.jsonl").write_text(
             json.dumps({
                 "utterance_id": "utt_001",
                 "audio_path": "audio/utt_001.flac",
@@ -278,7 +278,7 @@ class TestRunDryRun:
     def test_dry_run_output_is_valid_jsonl(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "utterance_metadata.jsonl").write_text(
+        (data_dir / "train_word_transcripts.jsonl").write_text(
             json.dumps({
                 "utterance_id": "utt_001",
                 "audio_path": "audio/utt_001.flac",
@@ -299,7 +299,7 @@ class TestRunDryRun:
     def test_dry_run_with_missing_metadata_fails(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        # No utterance_metadata.jsonl
+        # No train_word_transcripts.jsonl
         output_dir = tmp_path / "output"
         result = run_dry_run(data_dir, output_dir)
         assert result["success"] is False
@@ -307,7 +307,7 @@ class TestRunDryRun:
     def test_dry_run_returns_timing(self, tmp_path):
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "utterance_metadata.jsonl").write_text(
+        (data_dir / "train_word_transcripts.jsonl").write_text(
             json.dumps({
                 "utterance_id": "utt_001",
                 "audio_path": "audio/utt_001.flac",

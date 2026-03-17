@@ -14,16 +14,15 @@ import sys
 import time
 from pathlib import Path
 
-from src.submission_builder import compute_size_budget
+try:
+    from src.submission_builder import compute_size_budget
+except ModuleNotFoundError:
+    from submission_builder import compute_size_budget
 
 # Packages required by the competition runtime
 REQUIRED_PACKAGES = ["torch", "transformers", "peft", "librosa", "soundfile"]
 
-# Patterns that indicate hardcoded paths outside the competition runtime
-_HARDCODED_PATH_RE = re.compile(
-    r'(?<!["\'])/'  # leading slash not inside quotes... actually let's be smarter
-)
-# More targeted: look for string literals with absolute paths not under /code_execution
+# Patterns that indicate hardcoded absolute paths not under /code_execution
 _BAD_PATH_RE = re.compile(
     r"""(['"])/(?!code_execution)[a-zA-Z][\w/.-]+\1"""
 )
@@ -199,7 +198,7 @@ def run_dry_run(data_dir: str | Path, output_dir: str | Path) -> dict:
     output_dir = Path(output_dir)
     t0 = time.time()
 
-    meta_path = data_dir / "utterance_metadata.jsonl"
+    meta_path = data_dir / "train_word_transcripts.jsonl"
     if not meta_path.exists():
         return {
             "success": False,

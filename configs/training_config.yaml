@@ -41,7 +41,7 @@ whisper_small:
 
 whisper_large_v3:
   model_name: openai/whisper-large-v3
-  learning_rate: 1.0e-3
+  learning_rate: 1.0e-4
   warmup_steps: 500
   num_train_epochs: 3
   per_device_train_batch_size: 1

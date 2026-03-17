@@ -7,14 +7,19 @@ and synthetic noisy validation.
 
 from __future__ import annotations
 
+import random
 from collections import defaultdict
 from pathlib import Path
 
 import jiwer
 import numpy as np
 
-from src.augment import create_noise_only_augmentation
-from src.utils import normalize_text
+try:
+    from src.augment import create_noise_only_augmentation
+    from src.utils import normalize_text
+except ModuleNotFoundError:
+    from augment import create_noise_only_augmentation
+    from utils import normalize_text
 
 
 def split_by_child_id(
@@ -46,15 +51,15 @@ def split_by_child_id(
         bucket_to_children[bucket].sort()
 
     # Stratified split: pick val children from each bucket
-    import random
-
     rng = random.Random(seed)
     val_children: set[str] = set()
 
     for bucket in sorted(bucket_to_children.keys()):
         children = bucket_to_children[bucket][:]
         rng.shuffle(children)
-        n_val = max(0, round(len(children) * val_ratio))
+        n_val = max(1, round(len(children) * val_ratio))
+        # Don't take all children as val — leave at least one for train
+        n_val = min(n_val, len(children) - 1) if len(children) > 1 else 0
         val_children.update(children[:n_val])
 
     # If no val children selected (too few per bucket), pick at least from global pool
@@ -180,11 +185,13 @@ def apply_noise_to_val(
 
     rng = np.random.RandomState(seed)
     noisy_list = []
+    old_state = np.random.get_state()
     for audio in audio_list:
         # Set a per-sample seed derived from the main seed for reproducibility
         np.random.seed(rng.randint(0, 2**31))
         noisy = augment_fn(audio, sample_rate=sample_rate)
         noisy_list.append(noisy)
+    np.random.set_state(old_state)
 
     return noisy_list
 

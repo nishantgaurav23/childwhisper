@@ -21,10 +21,16 @@ from transformers import (
     WhisperProcessor,
 )
 
-from src.augment import create_augmentation
-from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
-from src.evaluate import compute_wer
-from src.preprocess import load_metadata
+try:
+    from src.augment import create_augmentation
+    from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from src.evaluate import compute_wer
+    from src.preprocess import load_metadata
+except ModuleNotFoundError:
+    from augment import create_augmentation
+    from dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from evaluate import compute_wer
+    from preprocess import load_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +107,14 @@ def create_augment_fn(
     )
 
 
-def setup_model(config: dict) -> tuple:
+def setup_model(config: dict, dry_run: bool = False) -> tuple:
     """Load Whisper-small model and processor with SpecAugment + gradient checkpointing."""
     model_name = config["model_name"]
 
+    use_fp16 = config.get("fp16", True) and not dry_run
     model = WhisperForConditionalGeneration.from_pretrained(
         model_name,
-        torch_dtype=torch.float16 if config.get("fp16", True) else torch.float32,
+        torch_dtype=torch.float16 if use_fp16 else torch.float32,
     )
     processor = WhisperProcessor.from_pretrained(model_name)
 
@@ -124,10 +131,10 @@ def setup_model(config: dict) -> tuple:
         model.config.mask_feature_prob = sa.get("mask_feature_prob", 0.04)
         model.config.mask_feature_length = sa.get("mask_feature_length", 10)
 
-    # Disable forced_decoder_ids, use suppress_tokens instead
+    # Disable forced_decoder_ids and suppress_tokens via generation_config
     model.config.forced_decoder_ids = None
-    model.config.suppress_tokens = []
     model.generation_config.forced_decoder_ids = None
+    model.generation_config.suppress_tokens = []
 
     return model, processor
 
@@ -230,8 +237,12 @@ def build_datasets(
     import json
     import tempfile
 
-    train_meta_path = Path(tempfile.mktemp(suffix=".jsonl"))
-    val_meta_path = Path(tempfile.mktemp(suffix=".jsonl"))
+    train_meta_fd = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+    train_meta_path = Path(train_meta_fd.name)
+    train_meta_fd.close()
+    val_meta_fd = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+    val_meta_path = Path(val_meta_fd.name)
+    val_meta_fd.close()
 
     train_meta_path.write_text("\n".join(json.dumps(e) for e in train_meta))
     val_meta_path.write_text("\n".join(json.dumps(e) for e in val_meta))
@@ -287,7 +298,7 @@ def main(argv: list[str] | None = None) -> float:
                      args.noise_dir, args.realclass_dir)
 
     # Setup
-    model, processor = setup_model(config)
+    model, processor = setup_model(config, dry_run=args.dry_run)
     training_args = setup_training_args(
         config,
         output_dir=args.output_dir,

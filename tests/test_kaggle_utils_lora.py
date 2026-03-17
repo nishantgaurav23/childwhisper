@@ -142,7 +142,7 @@ class TestCheckGpuMemory:
     def test_with_cuda_available(self):
         mock_props = MagicMock()
         mock_props.name = "Tesla T4"
-        mock_props.total_mem = 16 * 1024**3  # 16 GB in bytes
+        mock_props.total_memory = 16 * 1024**3  # 16 GB in bytes
 
         with patch("src.kaggle_utils.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = True
@@ -163,7 +163,7 @@ class TestCheckGpuMemory:
     def test_insufficient_memory(self):
         mock_props = MagicMock()
         mock_props.name = "GTX 1060"
-        mock_props.total_mem = 6 * 1024**3  # 6 GB
+        mock_props.total_memory = 6 * 1024**3  # 6 GB
 
         with patch("src.kaggle_utils.torch") as mock_torch:
             mock_torch.cuda.is_available.return_value = True

@@ -171,6 +171,9 @@ def get_kaggle_training_args(
     if num_epochs is not None:
         args.extend(["--num-train-epochs", str(num_epochs)])
 
+    if resume_from is not None:
+        args.extend(["--resume-from", str(resume_from)])
+
     if dry_run:
         args.append("--dry-run")
 
@@ -270,6 +273,9 @@ def get_lora_training_args(
     if num_epochs is not None:
         args.extend(["--num-train-epochs", str(num_epochs)])
 
+    if resume_from is not None:
+        args.extend(["--resume-from", str(resume_from)])
+
     if dry_run:
         args.append("--dry-run")
 
@@ -296,7 +302,7 @@ def check_gpu_memory(min_gb: float = 14.0) -> dict:
         }
 
     props = torch.cuda.get_device_properties(0)
-    total_gb = props.total_mem / (1024**3)
+    total_gb = props.total_memory / (1024**3)
     return {
         "gpu_name": props.name,
         "total_memory_gb": total_gb,

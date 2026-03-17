@@ -25,10 +25,16 @@ from transformers import (
     WhisperProcessor,
 )
 
-from src.augment import create_augmentation
-from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
-from src.evaluate import compute_wer
-from src.preprocess import load_metadata
+try:
+    from src.augment import create_augmentation
+    from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from src.evaluate import compute_wer
+    from src.preprocess import load_metadata
+except ModuleNotFoundError:
+    from augment import create_augmentation
+    from dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from evaluate import compute_wer
+    from preprocess import load_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -286,8 +292,12 @@ def build_datasets(
     logger.info("Train: %d utterances, Val: %d utterances", len(train_meta), len(val_meta))
 
     # Write split metadata to temp files for WhisperDataset
-    train_meta_path = Path(tempfile.mktemp(suffix=".jsonl"))
-    val_meta_path = Path(tempfile.mktemp(suffix=".jsonl"))
+    train_meta_fd = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+    train_meta_path = Path(train_meta_fd.name)
+    train_meta_fd.close()
+    val_meta_fd = tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False)
+    val_meta_path = Path(val_meta_fd.name)
+    val_meta_fd.close()
 
     train_meta_path.write_text("\n".join(json.dumps(e) for e in train_meta))
     val_meta_path.write_text("\n".join(json.dumps(e) for e in val_meta))

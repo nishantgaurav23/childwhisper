@@ -16,14 +16,24 @@ import torch
 from torch.utils.data import Dataset
 from transformers import WhisperProcessor
 
-from src.preprocess import (
-    is_silence,
-    is_valid_duration,
-    load_audio,
-    load_metadata,
-    trim_silence,
-)
-from src.utils import normalize_text
+try:
+    from src.preprocess import (
+        is_silence,
+        is_valid_duration,
+        load_audio,
+        load_metadata,
+        trim_silence,
+    )
+    from src.utils import normalize_text
+except ModuleNotFoundError:
+    from preprocess import (
+        is_silence,
+        is_valid_duration,
+        load_audio,
+        load_metadata,
+        trim_silence,
+    )
+    from utils import normalize_text
 
 
 class WhisperDataset(Dataset):

@@ -43,7 +43,8 @@
 | 2 | Whisper-small Fine-Tune | 4 | Fine-tuned small model, WER ~0.15-0.20 |
 | 3 | Whisper-large-v3 LoRA | 4 | LoRA adapter, ensemble inference, WER ~0.12-0.17 |
 | 4 | Noise Augmentation | 3 | Noise-robust models, improved Noisy WER |
-| 5 | Optimizations & Polish | 4 | Final WER squeeze, submission packaging |
+| 5 | Optimizations & Polish | 5 | Final WER squeeze, submission packaging, HP sweep |
+| 6 | Autonomous Optimization | 1 | AI-driven experiment loop (AutoWhisper) |
 
 ---
 
@@ -109,6 +110,17 @@
 | S5.2 | specs/spec-S5.2-faster-inference/ | S3.3 | submission/main.py | Inference optimization | SDPA, torch.compile, dynamic batching, beam=8 for large | done |
 | S5.3 | specs/spec-S5.3-error-analysis/ | S1.5, S3.3 | src/evaluate.py, notebooks/01_eda.ipynb | Error analysis tooling | Per-age WER, sub/ins/del breakdown, hallucination detection | done |
 | S5.4 | specs/spec-S5.4-final-submission/ | S5.1, S5.2 | submission/ | Final submission package | Docker test, size verify, competition submit | done |
+| S5.5 | specs/spec-S5.5-hyperparam-sweep-kaggle/ | S2.2, S3.1, S4.1 | src/sweep.py, src/kaggle_runner.py, scripts/ | Hyperparameter sweep + Kaggle API | Sweep configs, notebook gen, remote run management | done |
+
+---
+
+## Phase 6: Autonomous Optimization (AutoWhisper)
+
+**Goal**: AI-driven autonomous experiment loop inspired by Karpathy's autoresearch. Agent modifies a training script, runs time-boxed experiments, keeps improvements, reverts regressions, logs everything.
+
+| Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
+|------|--------------|------------|----------|---------|-------|--------|
+| S6.1 | specs/spec-S6.1-autowhisper-experiment-loop/ | S2.2, S3.1, S4.1, S1.5, S5.5 | src/autowhisper/, notebooks/05_autowhisper.ipynb | Autonomous AI experiment loop | Fixed eval harness + mutable train.py + keep/revert loop + Kaggle notebook | done |
 
 ---
 
@@ -136,3 +148,5 @@
 | S5.2 | Inference optimization | 5 | S3.3 | done |
 | S5.3 | Error analysis tooling | 5 | S1.5, S3.3 | done |
 | S5.4 | Final submission package | 5 | S5.1, S5.2 | done |
+| S5.5 | Hyperparameter sweep + Kaggle API | 5 | S2.2, S3.1, S4.1 | done |
+| S6.1 | AutoWhisper: Autonomous AI experiment loop | 6 | S2.2, S3.1, S4.1, S1.5, S5.5 | done |

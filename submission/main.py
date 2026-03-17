@@ -136,15 +136,19 @@ def load_model(
             Defaults to "openai/whisper-small" (zero-shot).
     """
     dtype = torch.float16 if device == "cuda" else torch.float32
+    attn_kwargs = {}
+    if device == "cuda":
+        attn_kwargs["attn_implementation"] = "sdpa"
     model = WhisperForConditionalGeneration.from_pretrained(
-        model_name_or_path, torch_dtype=dtype, attn_implementation="sdpa"
+        model_name_or_path, torch_dtype=dtype, **attn_kwargs
     ).to(device)
+    model = maybe_compile(model, device)
     model.eval()
 
     # Load processor from same path; fall back to default if not found
     try:
         processor = WhisperProcessor.from_pretrained(model_name_or_path)
-    except (OSError, Exception):
+    except OSError:
         logger.warning(
             "Processor not found at %s, falling back to %s",
             model_name_or_path,
@@ -199,6 +203,7 @@ def run_inference(
     data_dir: Path,
     device: str,
     batch_size: int = 16,
+    model_size: str = "small",
 ) -> dict[str, str]:
     """Run inference on all utterances. Returns {utterance_id: normalized_text}."""
     # Sort by duration (longest first) for efficient batching
@@ -206,6 +211,7 @@ def run_inference(
         utterances, key=lambda u: u.get("audio_duration_sec", 0), reverse=True
     )
 
+    beam_config = get_beam_config(model_size)
     predictions: dict[str, str] = {}
 
     for i in range(0, len(sorted_utts), batch_size):
@@ -232,7 +238,9 @@ def run_inference(
             batch_ids.append(uid)
 
         if audio_arrays:
-            texts = transcribe_batch(model, processor, audio_arrays, device)
+            texts = transcribe_batch(
+                model, processor, audio_arrays, device, **beam_config
+            )
             for uid, text in zip(batch_ids, texts):
                 predictions[uid] = normalize_and_postprocess(text)
 
@@ -266,10 +274,14 @@ def load_large_model(
 ) -> tuple:
     """Load Whisper-large-v3 base model + LoRA adapter. Returns (model, processor)."""
     dtype = torch.float16 if device == "cuda" else torch.float32
+    attn_kwargs = {}
+    if device == "cuda":
+        attn_kwargs["attn_implementation"] = "sdpa"
     base = WhisperForConditionalGeneration.from_pretrained(
-        base_model, torch_dtype=dtype, attn_implementation="sdpa"
+        base_model, torch_dtype=dtype, **attn_kwargs
     ).to(device)
     model = PeftModel.from_pretrained(base, str(adapter_path))
+    model = maybe_compile(model, device)
     model.eval()
     processor = WhisperProcessor.from_pretrained(base_model)
     return model, processor
@@ -331,7 +343,10 @@ def run_ensemble_inference(
         model_a, proc_a = load_large_model(device, adapter_path=adapter_path)
         logger.info("Model A loaded in %.1fs", time.time() - t0)
 
-        preds_a = run_inference(model_a, proc_a, utterances, data_dir, device, batch_size)
+        preds_a = run_inference(
+            model_a, proc_a, utterances, data_dir, device, batch_size,
+            model_size="large",
+        )
         logger.info("Model A inference done in %.1fs", time.time() - t0)
 
         # Free VRAM before loading Model B
@@ -350,7 +365,8 @@ def run_ensemble_inference(
             logger.info("Loading Model B (Whisper-small fine-tuned)...")
             model_b, proc_b = load_model(device, model_name_or_path=small_model_path)
             preds_b = run_inference(
-                model_b, proc_b, utterances, data_dir, device, batch_size
+                model_b, proc_b, utterances, data_dir, device, batch_size,
+                model_size="small",
             )
             logger.info("Model B inference done in %.1fs", time.time() - t0)
             del model_b, proc_b
@@ -384,6 +400,10 @@ def main():
     small_model_path = resolve_model_path(FINETUNED_WEIGHTS_DIR)
     print(f"Small model source: {small_model_path}")
 
+    # Use optimal batch size for the device
+    batch_size = get_optimal_batch_size(device, model_size="small")
+    print(f"Batch size: {batch_size}")
+
     # Run ensemble inference
     predictions = run_ensemble_inference(
         utterances=utterances,
@@ -391,7 +411,7 @@ def main():
         device=device,
         adapter_path=LORA_ADAPTER_DIR,
         small_model_path=small_model_path,
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
     )
     print(f"Ensemble inference done in {time.time() - t0:.1f}s")
 
