@@ -95,7 +95,7 @@
 |------|--------------|------------|----------|---------|-------|--------|
 | S4.1 | specs/spec-S4.1-augmentation-pipeline/ | S2.1 | src/augment.py | Noise augmentation pipeline | RealClass + MUSAN mixing, SNR 0-20dB, 50/20/30 split | done |
 | S4.2 | specs/spec-S4.2-noisy-validation/ | S4.1, S1.5 | src/evaluate.py | Noisy validation set | Synthetic noisy val (val audio + RealClass SNR 10dB) | done |
-| S4.3 | specs/spec-S4.3-retrain-augmented/ | S4.1, S3.1 | notebooks/04_augmented.ipynb | Retrain with augmented data | Re-train LoRA + small on augmented data | pending |
+| S4.3 | specs/spec-S4.3-retrain-augmented/ | S4.1, S3.1 | notebooks/04_augmented.ipynb | Retrain with augmented data | Re-train LoRA + small on augmented data | done |
 
 ---
 
@@ -131,7 +131,7 @@
 | S3.4 | Submission zip builder | 3 | S3.3 | done |
 | S4.1 | Noise augmentation pipeline | 4 | S2.1 | done |
 | S4.2 | Noisy validation set | 4 | S4.1, S1.5 | done |
-| S4.3 | Retrain with augmented data | 4 | S4.1, S3.1 | pending |
+| S4.3 | Retrain with augmented data | 4 | S4.1, S3.1 | done |
 | S5.1 | Post-processing corrections | 5 | S3.3 | pending |
 | S5.2 | Inference optimization | 5 | S3.3 | pending |
 | S5.3 | Error analysis tooling | 5 | S1.5, S3.3 | pending |

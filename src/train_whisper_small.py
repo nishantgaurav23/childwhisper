@@ -21,6 +21,7 @@ from transformers import (
     WhisperProcessor,
 )
 
+from src.augment import create_augmentation
 from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
 from src.evaluate import compute_wer
 from src.preprocess import load_metadata
@@ -63,9 +64,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Run 1 training step + 1 eval step for testing")
     parser.add_argument("--no-push-to-hub", action="store_true",
                         help="Disable pushing checkpoints to HF Hub")
+    parser.add_argument("--noise-dir", type=str, default=None,
+                        help="Path to MUSAN noise directory for augmentation")
+    parser.add_argument("--realclass-dir", type=str, default=None,
+                        help="Path to RealClass noise directory for augmentation")
+    parser.add_argument("--hub-model-id", type=str, default=None,
+                        help="Override HuggingFace Hub model ID")
     args = parser.parse_args(argv)
     args.push_to_hub = not args.no_push_to_hub
     return args
+
+
+def create_augment_fn(
+    noise_dir: str | None,
+    realclass_dir: str | None,
+    config: dict,
+):
+    """Create augmentation function from CLI args and config.
+
+    Returns None if no noise dirs provided. Raises ValueError if only one provided.
+    """
+    if noise_dir is None and realclass_dir is None:
+        return None
+    if (noise_dir is None) != (realclass_dir is None):
+        raise ValueError(
+            "Both --noise-dir and --realclass-dir must be provided together"
+        )
+    aug_cfg = config.get("augmentation", {})
+    return create_augmentation(
+        noise_dir=noise_dir,
+        realclass_dir=realclass_dir,
+        realclass_min_snr=aug_cfg.get("realclass_min_snr_db", 5.0),
+        realclass_max_snr=aug_cfg.get("realclass_max_snr_db", 20.0),
+        musan_min_snr=aug_cfg.get("musan_min_snr_db", 0.0),
+        musan_max_snr=aug_cfg.get("musan_max_snr_db", 15.0),
+    )
 
 
 def setup_model(config: dict) -> tuple:
@@ -240,6 +273,18 @@ def main(argv: list[str] | None = None) -> float:
     # CLI overrides
     if args.num_train_epochs is not None:
         config["num_train_epochs"] = args.num_train_epochs
+    if args.hub_model_id is not None:
+        config["hub_model_id"] = args.hub_model_id
+
+    # Setup augmentation
+    augment_fn = create_augment_fn(
+        noise_dir=args.noise_dir,
+        realclass_dir=args.realclass_dir,
+        config=config,
+    )
+    if augment_fn is not None:
+        logger.info("Augmentation enabled (noise_dir=%s, realclass_dir=%s)",
+                     args.noise_dir, args.realclass_dir)
 
     # Setup
     model, processor = setup_model(config)
@@ -252,7 +297,7 @@ def main(argv: list[str] | None = None) -> float:
     )
 
     train_ds, val_ds = build_datasets(
-        config, args.metadata_path, args.audio_dir
+        config, args.metadata_path, args.audio_dir, augment_fn=augment_fn
     )
 
     collator = WhisperDataCollator(pad_token_id=processor.tokenizer.pad_token_id)

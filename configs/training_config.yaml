@@ -16,6 +16,11 @@ common:
     split_ratio: 0.1
     stratify_by: age_bucket
     split_by: child_id
+  augmentation:
+    realclass_min_snr_db: 5.0
+    realclass_max_snr_db: 20.0
+    musan_min_snr_db: 0.0
+    musan_max_snr_db: 15.0
 
 whisper_small:
   model_name: openai/whisper-small
