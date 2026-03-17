@@ -105,10 +105,10 @@
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S5.1 | specs/spec-S5.1-post-processing/ | S3.3 | src/utils.py | Post-processing corrections | Children's vocab spell-check, common ASR error fixes | pending |
-| S5.2 | specs/spec-S5.2-faster-inference/ | S3.3 | submission/main.py | Inference optimization | CTranslate2/faster-whisper, larger beam or more passes | pending |
-| S5.3 | specs/spec-S5.3-error-analysis/ | S1.5, S3.3 | src/evaluate.py, notebooks/01_eda.ipynb | Error analysis tooling | Per-age WER, sub/ins/del breakdown, hallucination detection | pending |
-| S5.4 | specs/spec-S5.4-final-submission/ | S5.1, S5.2 | submission/ | Final submission package | Docker test, size verify, competition submit | pending |
+| S5.1 | specs/spec-S5.1-post-processing/ | S3.3 | src/utils.py | Post-processing corrections | Children's vocab spell-check, common ASR error fixes | done |
+| S5.2 | specs/spec-S5.2-faster-inference/ | S3.3 | submission/main.py | Inference optimization | SDPA, torch.compile, dynamic batching, beam=8 for large | done |
+| S5.3 | specs/spec-S5.3-error-analysis/ | S1.5, S3.3 | src/evaluate.py, notebooks/01_eda.ipynb | Error analysis tooling | Per-age WER, sub/ins/del breakdown, hallucination detection | done |
+| S5.4 | specs/spec-S5.4-final-submission/ | S5.1, S5.2 | submission/ | Final submission package | Docker test, size verify, competition submit | done |
 
 ---
 
@@ -132,7 +132,7 @@
 | S4.1 | Noise augmentation pipeline | 4 | S2.1 | done |
 | S4.2 | Noisy validation set | 4 | S4.1, S1.5 | done |
 | S4.3 | Retrain with augmented data | 4 | S4.1, S3.1 | done |
-| S5.1 | Post-processing corrections | 5 | S3.3 | pending |
-| S5.2 | Inference optimization | 5 | S3.3 | pending |
-| S5.3 | Error analysis tooling | 5 | S1.5, S3.3 | pending |
-| S5.4 | Final submission package | 5 | S5.1, S5.2 | pending |
+| S5.1 | Post-processing corrections | 5 | S3.3 | done |
+| S5.2 | Inference optimization | 5 | S3.3 | done |
+| S5.3 | Error analysis tooling | 5 | S1.5, S3.3 | done |
+| S5.4 | Final submission package | 5 | S5.1, S5.2 | done |

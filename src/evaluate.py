@@ -263,3 +263,204 @@ def format_validation_report(combined_summary: dict) -> str:
     lines.append(f"Degradation (rel):  {combined_summary['relative_degradation']:.4f}")
 
     return "\n".join(lines)
+
+
+def compute_error_breakdown(
+    references: list[str],
+    hypotheses: list[str],
+) -> dict:
+    """Compute substitution/insertion/deletion breakdown with WER.
+
+    Normalizes both sides with EnglishTextNormalizer. Skips pairs where
+    the normalized reference is empty.
+
+    Returns dict with: substitutions, insertions, deletions, hits,
+    total_ref_words, wer, sub_rate, ins_rate, del_rate.
+    """
+    filtered_refs = []
+    filtered_hyps = []
+
+    for ref, hyp in zip(references, hypotheses):
+        norm_ref = normalize_text(ref)
+        if not norm_ref.strip():
+            continue
+        norm_hyp = normalize_text(hyp)
+        filtered_refs.append(norm_ref)
+        filtered_hyps.append(norm_hyp)
+
+    if not filtered_refs:
+        return {
+            "substitutions": 0,
+            "insertions": 0,
+            "deletions": 0,
+            "hits": 0,
+            "total_ref_words": 0,
+            "wer": 0.0,
+            "sub_rate": 0.0,
+            "ins_rate": 0.0,
+            "del_rate": 0.0,
+        }
+
+    output = jiwer.process_words(filtered_refs, filtered_hyps)
+    total_ref = sum(len(r.split()) for r in filtered_refs)
+
+    subs = output.substitutions
+    ins = output.insertions
+    dels = output.deletions
+    hits = output.hits
+
+    return {
+        "substitutions": subs,
+        "insertions": ins,
+        "deletions": dels,
+        "hits": hits,
+        "total_ref_words": total_ref,
+        "wer": (subs + ins + dels) / total_ref if total_ref > 0 else 0.0,
+        "sub_rate": subs / total_ref if total_ref > 0 else 0.0,
+        "ins_rate": ins / total_ref if total_ref > 0 else 0.0,
+        "del_rate": dels / total_ref if total_ref > 0 else 0.0,
+    }
+
+
+def compute_per_age_error_breakdown(
+    references: list[str],
+    hypotheses: list[str],
+    age_buckets: list[str],
+) -> dict[str, dict]:
+    """Compute error breakdown separately for each age bucket.
+
+    Returns dict mapping age_bucket to error breakdown dict.
+    """
+    bucket_refs: dict[str, list[str]] = defaultdict(list)
+    bucket_hyps: dict[str, list[str]] = defaultdict(list)
+
+    for ref, hyp, age in zip(references, hypotheses, age_buckets):
+        bucket_refs[age].append(ref)
+        bucket_hyps[age].append(hyp)
+
+    result = {}
+    for bucket in sorted(bucket_refs.keys()):
+        result[bucket] = compute_error_breakdown(bucket_refs[bucket], bucket_hyps[bucket])
+    return result
+
+
+def detect_hallucinations(
+    references: list[str],
+    hypotheses: list[str],
+    threshold: float = 3.0,
+) -> list[dict]:
+    """Detect hallucinated predictions where hyp word count >> ref word count.
+
+    Flags utterances where hyp_word_count > threshold * ref_word_count.
+    Also flags non-empty hypothesis when reference is empty (ratio = inf).
+    Empty hypotheses are never flagged.
+
+    Returns list of dicts with: index, reference, hypothesis,
+    ref_word_count, hyp_word_count, ratio.
+    """
+    flagged = []
+    for i, (ref, hyp) in enumerate(zip(references, hypotheses)):
+        norm_ref = normalize_text(ref)
+        norm_hyp = normalize_text(hyp)
+
+        hyp_words = len(norm_hyp.split()) if norm_hyp.strip() else 0
+        ref_words = len(norm_ref.split()) if norm_ref.strip() else 0
+
+        if hyp_words == 0:
+            continue
+
+        if ref_words == 0:
+            ratio = float("inf")
+        else:
+            ratio = hyp_words / ref_words
+
+        if ratio > threshold:
+            flagged.append({
+                "index": i,
+                "reference": norm_ref,
+                "hypothesis": norm_hyp,
+                "ref_word_count": ref_words,
+                "hyp_word_count": hyp_words,
+                "ratio": ratio,
+            })
+
+    return flagged
+
+
+def error_analysis_summary(
+    references: list[str],
+    hypotheses: list[str],
+    age_buckets: list[str],
+    hallucination_threshold: float = 3.0,
+) -> dict:
+    """Compute a full error analysis summary.
+
+    Returns dict with: overall_breakdown, per_age_breakdown,
+    hallucinations, hallucination_count, hallucination_rate.
+    """
+    overall = compute_error_breakdown(references, hypotheses)
+    per_age = compute_per_age_error_breakdown(references, hypotheses, age_buckets)
+    hallucinations = detect_hallucinations(references, hypotheses, hallucination_threshold)
+    total = len(references)
+
+    return {
+        "overall_breakdown": overall,
+        "per_age_breakdown": per_age,
+        "hallucinations": hallucinations,
+        "hallucination_count": len(hallucinations),
+        "hallucination_rate": len(hallucinations) / total if total > 0 else 0.0,
+    }
+
+
+def format_error_analysis_report(summary: dict) -> str:
+    """Format an error analysis summary as a human-readable report.
+
+    Includes S/I/D breakdown table, per-age breakdown, and hallucination summary.
+    """
+    lines = []
+    overall = summary["overall_breakdown"]
+
+    lines.append("Error Analysis Report")
+    lines.append("=" * 60)
+
+    # Overall breakdown
+    lines.append(f"Overall WER:       {overall['wer']:.4f}")
+    lines.append(f"Total Ref Words:   {overall['total_ref_words']}")
+    lines.append("")
+    lines.append(f"  Substitutions:   {overall['substitutions']:>6d}  "
+                 f"(Sub rate: {overall['sub_rate']:.4f})")
+    lines.append(f"  Insertions:      {overall['insertions']:>6d}  "
+                 f"(Ins rate: {overall['ins_rate']:.4f})")
+    lines.append(f"  Deletions:       {overall['deletions']:>6d}  "
+                 f"(Del rate: {overall['del_rate']:.4f})")
+    lines.append(f"  Hits:            {overall['hits']:>6d}")
+
+    # Per-age breakdown
+    per_age = summary["per_age_breakdown"]
+    if per_age:
+        lines.append("")
+        lines.append("-" * 60)
+        lines.append(f"{'Age':<10} {'WER':>8} {'Sub':>6} {'Ins':>6} {'Del':>6} {'Refs':>6}")
+        lines.append("-" * 60)
+        for bucket in sorted(per_age.keys()):
+            b = per_age[bucket]
+            lines.append(
+                f"{bucket:<10} {b['wer']:>8.4f} {b['substitutions']:>6d} "
+                f"{b['insertions']:>6d} {b['deletions']:>6d} {b['total_ref_words']:>6d}"
+            )
+
+    # Hallucination summary
+    lines.append("")
+    lines.append("-" * 60)
+    lines.append(f"Hallucinations:    {summary['hallucination_count']} "
+                 f"({summary['hallucination_rate']:.2%} of utterances)")
+    if summary["hallucinations"]:
+        lines.append("")
+        for h in summary["hallucinations"][:10]:  # show at most 10
+            ratio_str = f"{h['ratio']:.1f}x" if h["ratio"] != float("inf") else "inf"
+            lines.append(f"  [{h['index']}] ratio={ratio_str}: "
+                         f"ref='{h['reference']}' -> hyp='{h['hypothesis']}'")
+        if len(summary["hallucinations"]) > 10:
+            lines.append(f"  ... and {len(summary['hallucinations']) - 10} more")
+
+    return "\n".join(lines)

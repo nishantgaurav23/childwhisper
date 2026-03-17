@@ -7,7 +7,7 @@ Falls back to single model when adapter/weights are unavailable.
 Runs on A100 (80 GB VRAM), no network, 2-hour limit.
 Also works on MacBook (MPS/CPU) for local testing.
 
-Specs: S1.4 (zero-shot), S2.4 (fine-tuned), S3.3 (ensemble inference)
+Specs: S1.4 (zero-shot), S2.4 (fine-tuned), S3.3 (ensemble), S5.2 (faster inference)
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from src.preprocess import is_silence, load_audio  # noqa: E402
-from src.utils import normalize_text  # noqa: E402
+from src.utils import normalize_and_postprocess  # noqa: E402
 from peft import PeftModel  # noqa: E402
 from transformers import WhisperForConditionalGeneration, WhisperProcessor  # noqa: E402
 
@@ -56,6 +56,46 @@ def get_device() -> str:
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+def get_optimal_batch_size(device: str, model_size: str = "small") -> int:
+    """Return optimal batch size based on device and model size.
+
+    A100 (80GB) can handle much larger batches than T4/MPS.
+    """
+    batch_sizes = {
+        "cuda": {"large": 32, "small": 64},
+        "mps": {"large": 16, "small": 16},
+        "cpu": {"large": 4, "small": 4},
+    }
+    device_map = batch_sizes.get(device, {"large": 4, "small": 4})
+    return device_map.get(model_size, 16)
+
+
+def maybe_compile(model, device: str):
+    """Optionally compile model with torch.compile on CUDA for faster inference.
+
+    Skips on CPU/MPS where compile is unreliable or unsupported.
+    Falls back to original model if compile fails.
+    """
+    if device != "cuda":
+        return model
+    try:
+        return torch.compile(model, mode="reduce-overhead")
+    except Exception:
+        logger.warning("torch.compile failed, using uncompiled model")
+        return model
+
+
+def get_beam_config(model_size: str = "small") -> dict:
+    """Return beam search configuration based on model size.
+
+    Large model gets num_beams=8 (speed gains from SDPA offset the cost).
+    Small model keeps num_beams=5 (diminishing returns).
+    """
+    if model_size == "large":
+        return {"num_beams": 8, "length_penalty": 1.0, "max_new_tokens": 225}
+    return {"num_beams": 5, "length_penalty": 1.0, "max_new_tokens": 225}
 
 
 def resolve_model_path(
@@ -97,7 +137,7 @@ def load_model(
     """
     dtype = torch.float16 if device == "cuda" else torch.float32
     model = WhisperForConditionalGeneration.from_pretrained(
-        model_name_or_path, torch_dtype=dtype
+        model_name_or_path, torch_dtype=dtype, attn_implementation="sdpa"
     ).to(device)
     model.eval()
 
@@ -116,7 +156,13 @@ def load_model(
 
 
 def transcribe_batch(
-    model, processor, audio_arrays: list[np.ndarray], device: str
+    model,
+    processor,
+    audio_arrays: list[np.ndarray],
+    device: str,
+    num_beams: int = 5,
+    length_penalty: float = 1.0,
+    max_new_tokens: int = 225,
 ) -> list[str]:
     """Transcribe a batch of audio arrays. Returns list of raw text predictions."""
     if not audio_arrays:
@@ -137,8 +183,9 @@ def transcribe_batch(
             input_features,
             language="en",
             task="transcribe",
-            num_beams=5,
-            max_new_tokens=225,
+            num_beams=num_beams,
+            max_new_tokens=max_new_tokens,
+            length_penalty=length_penalty,
         )
 
     texts = processor.batch_decode(generated, skip_special_tokens=True)
@@ -187,7 +234,7 @@ def run_inference(
         if audio_arrays:
             texts = transcribe_batch(model, processor, audio_arrays, device)
             for uid, text in zip(batch_ids, texts):
-                predictions[uid] = normalize_text(text)
+                predictions[uid] = normalize_and_postprocess(text)
 
     return predictions
 
@@ -220,7 +267,7 @@ def load_large_model(
     """Load Whisper-large-v3 base model + LoRA adapter. Returns (model, processor)."""
     dtype = torch.float16 if device == "cuda" else torch.float32
     base = WhisperForConditionalGeneration.from_pretrained(
-        base_model, torch_dtype=dtype
+        base_model, torch_dtype=dtype, attn_implementation="sdpa"
     ).to(device)
     model = PeftModel.from_pretrained(base, str(adapter_path))
     model.eval()
