@@ -1,0 +1,49 @@
+# Data (large files)
+data/
+*.flac
+*.wav
+*.mp3
+
+# Model weights
+submission/model_weights/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.ctranslate2
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Submission artifacts
+submission.zip
+
+# HuggingFace cache
+.cache/

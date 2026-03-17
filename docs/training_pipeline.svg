@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 960 620" font-family="Inter, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+    </filter>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#f1f5f9"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="620" rx="16" fill="url(#bgGrad)" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="480" y="40" text-anchor="middle" font-size="20" font-weight="700" fill="#0f172a">Training Pipeline</text>
+  <text x="480" y="60" text-anchor="middle" font-size="13" fill="#64748b">Kaggle T4 (16GB) / Colab T4 — $0/month</text>
+
+  <!-- Raw Data -->
+  <rect x="60" y="100" width="160" height="80" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="140" y="132" text-anchor="middle" font-size="13" font-weight="600" fill="#0f172a">Raw Data</text>
+  <text x="140" y="152" text-anchor="middle" font-size="11" fill="#64748b">FLAC audio files</text>
+  <text x="140" y="168" text-anchor="middle" font-size="11" fill="#64748b">+ JSONL transcripts</text>
+
+  <!-- Arrow: Raw -> Preprocessor -->
+  <line x1="220" y1="140" x2="280" y2="140" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Preprocessor -->
+  <rect x="290" y="100" width="180" height="80" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="380" y="132" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">Preprocessor</text>
+  <text x="380" y="150" text-anchor="middle" font-size="11" fill="#3b82f6">16kHz mono resample</text>
+  <text x="380" y="166" text-anchor="middle" font-size="11" fill="#3b82f6">Trim silence, filter</text>
+
+  <!-- Arrow: Preprocessor -> Augmentation -->
+  <line x1="470" y1="140" x2="530" y2="140" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Augmentation -->
+  <rect x="540" y="100" width="180" height="80" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="630" y="128" text-anchor="middle" font-size="13" font-weight="600" fill="#854d0e">Augmentation</text>
+  <text x="630" y="146" text-anchor="middle" font-size="11" fill="#a16207">50% RealClass noise</text>
+  <text x="630" y="162" text-anchor="middle" font-size="11" fill="#a16207">20% MUSAN babble</text>
+  <text x="630" y="178" text-anchor="middle" font-size="11" fill="#a16207">30% clean</text>
+
+  <!-- Arrow: Augmentation -> Dataset -->
+  <line x1="720" y1="140" x2="770" y2="140" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Dataset -->
+  <rect x="780" y="100" width="140" height="80" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="850" y="132" text-anchor="middle" font-size="13" font-weight="600" fill="#166534">WhisperDataset</text>
+  <text x="850" y="150" text-anchor="middle" font-size="11" fill="#16a34a">Feature extraction</text>
+  <text x="850" y="166" text-anchor="middle" font-size="11" fill="#16a34a">Tokenization</text>
+
+  <!-- Arrow: Dataset down splits -->
+  <line x1="850" y1="180" x2="850" y2="220" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Validation Split -->
+  <rect x="720" y="225" width="260" height="55" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="850" y="248" text-anchor="middle" font-size="12" font-weight="600" fill="#0f172a">90/10 Split by child_id</text>
+  <text x="850" y="268" text-anchor="middle" font-size="11" fill="#64748b">Stratified by age_bucket (no speaker leakage)</text>
+
+  <!-- Arrows down to two models -->
+  <line x1="750" y1="280" x2="300" y2="340" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="900" y1="280" x2="660" y2="340" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Model A: Whisper-large-v3 + LoRA -->
+  <rect x="120" y="340" width="360" height="120" rx="12" fill="#faf5ff" stroke="#a855f7" stroke-width="2" filter="url(#shadow)"/>
+  <text x="300" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#6b21a8">Model A: Whisper-large-v3 + LoRA</text>
+  <text x="300" y="392" text-anchor="middle" font-size="11" fill="#7c3aed">LoRA r=32, alpha=64 | q_proj + v_proj</text>
+  <text x="300" y="410" text-anchor="middle" font-size="11" fill="#7c3aed">INT8 quantization (bitsandbytes)</text>
+  <text x="300" y="428" text-anchor="middle" font-size="11" fill="#7c3aed">LR=1e-3 | batch=1 | grad_accum=16</text>
+  <text x="300" y="446" text-anchor="middle" font-size="11" fill="#7c3aed">SpecAugment ON | ~8 hrs training</text>
+
+  <!-- Model B: Whisper-small -->
+  <rect x="540" y="340" width="360" height="120" rx="12" fill="#fff7ed" stroke="#f97316" stroke-width="2" filter="url(#shadow)"/>
+  <text x="720" y="370" text-anchor="middle" font-size="14" font-weight="700" fill="#9a3412">Model B: Whisper-small (Full FT)</text>
+  <text x="720" y="392" text-anchor="middle" font-size="11" fill="#ea580c">All 242M params trainable</text>
+  <text x="720" y="410" text-anchor="middle" font-size="11" fill="#ea580c">Gradient checkpointing</text>
+  <text x="720" y="428" text-anchor="middle" font-size="11" fill="#ea580c">LR=1e-5 | batch=2 | grad_accum=8</text>
+  <text x="720" y="446" text-anchor="middle" font-size="11" fill="#ea580c">SpecAugment ON | ~6 hrs training</text>
+
+  <!-- Arrows down to outputs -->
+  <line x1="300" y1="460" x2="300" y2="500" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="720" y1="460" x2="720" y2="500" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- LoRA Adapter output -->
+  <rect x="200" y="505" width="200" height="50" rx="8" fill="#f5f3ff" stroke="#a855f7" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="300" y="527" text-anchor="middle" font-size="12" font-weight="600" fill="#6b21a8">LoRA Adapter</text>
+  <text x="300" y="543" text-anchor="middle" font-size="11" fill="#7c3aed">~63 MB</text>
+
+  <!-- Full Weights output -->
+  <rect x="620" y="505" width="200" height="50" rx="8" fill="#fff7ed" stroke="#f97316" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="720" y="527" text-anchor="middle" font-size="12" font-weight="600" fill="#9a3412">Full Weights</text>
+  <text x="720" y="543" text-anchor="middle" font-size="11" fill="#ea580c">~500 MB</text>
+
+  <!-- Arrows to HF Hub -->
+  <line x1="300" y1="555" x2="440" y2="585" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="720" y1="555" x2="580" y2="585" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- HuggingFace Hub -->
+  <rect x="420" y="575" width="180" height="35" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5" filter="url(#shadow)"/>
+  <text x="510" y="597" text-anchor="middle" font-size="12" font-weight="600" fill="#92400e">HuggingFace Hub</text>
+
+  <!-- Checkpoint annotation -->
+  <text x="510" y="565" text-anchor="middle" font-size="10" fill="#64748b">Push every 500 steps (private repos)</text>
+</svg>

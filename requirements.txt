@@ -1,0 +1,30 @@
+# ChildWhisper — Pasketti Children's ASR Challenge
+# All dependencies must be free / open-source
+
+# Core ASR
+torch>=2.1
+torchaudio>=2.1
+transformers>=4.44
+peft>=0.12
+accelerate>=0.33
+bitsandbytes>=0.43
+datasets>=2.20
+
+# Audio processing
+librosa>=0.10
+soundfile>=0.12
+
+# Evaluation
+jiwer>=3.0
+
+# Augmentation
+audiomentations>=0.36
+
+# Dev & testing
+pytest>=7.0
+ruff>=0.4
+pyyaml>=6.0
+jupyter
+pandas
+matplotlib
+tqdm

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/nishantgaurav/Project/crisis-bench/**)",
+      "Read(//Users/nishantgaurav/Project/crisis-bench/.claude/commands/**)",
+      "Read(//Users/nishantgaurav/Project/crisis-bench/.claude/**)",
+      "Bash(python -m pytest tests/test_dataset.py -v)",
+      "Bash(.venv/bin/pip install:*)"
+    ]
+  }
+}
