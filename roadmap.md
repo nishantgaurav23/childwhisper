@@ -83,7 +83,7 @@
 | S3.1 | specs/spec-S3.1-lora-config/ | S2.1 | src/train_whisper_lora.py | LoRA configuration & training | r=32, alpha=64, INT8, q_proj+v_proj | done |
 | S3.2 | specs/spec-S3.2-kaggle-notebook-lora/ | S3.1 | notebooks/03_train_lora.ipynb | Kaggle LoRA training notebook | INT8 loading, LoRA training, adapter save | done |
 | S3.3 | specs/spec-S3.3-ensemble-inference/ | S3.1, S2.4 | submission/main.py | Ensemble inference pipeline | Both models sequential, confidence merge, time budget | done |
-| S3.4 | specs/spec-S3.4-submission-packaging/ | S3.3 | scripts/build_submission.sh | Submission zip builder | Bundle weights + code, size check, Docker test | pending |
+| S3.4 | specs/spec-S3.4-submission-packaging/ | S3.3 | scripts/build_submission.sh | Submission zip builder | Bundle weights + code, size check, Docker test | done |
 
 ---
 
@@ -93,7 +93,7 @@
 
 | Spec | Spec Location | Depends On | Location | Feature | Notes | Status |
 |------|--------------|------------|----------|---------|-------|--------|
-| S4.1 | specs/spec-S4.1-augmentation-pipeline/ | S2.1 | src/augment.py | Noise augmentation pipeline | RealClass + MUSAN mixing, SNR 0-20dB, 50/20/30 split | pending |
+| S4.1 | specs/spec-S4.1-augmentation-pipeline/ | S2.1 | src/augment.py | Noise augmentation pipeline | RealClass + MUSAN mixing, SNR 0-20dB, 50/20/30 split | done |
 | S4.2 | specs/spec-S4.2-noisy-validation/ | S4.1, S1.5 | src/evaluate.py | Noisy validation set | Synthetic noisy val (val audio + RealClass SNR 10dB) | pending |
 | S4.3 | specs/spec-S4.3-retrain-augmented/ | S4.1, S3.1 | notebooks/04_augmented.ipynb | Retrain with augmented data | Re-train LoRA + small on augmented data | pending |
 
@@ -128,8 +128,8 @@
 | S3.1 | LoRA configuration & training | 3 | S2.1 | done |
 | S3.2 | Kaggle LoRA training notebook | 3 | S3.1 | done |
 | S3.3 | Ensemble inference pipeline | 3 | S3.1, S2.4 | done |
-| S3.4 | Submission zip builder | 3 | S3.3 | pending |
-| S4.1 | Noise augmentation pipeline | 4 | S2.1 | pending |
+| S3.4 | Submission zip builder | 3 | S3.3 | done |
+| S4.1 | Noise augmentation pipeline | 4 | S2.1 | done |
 | S4.2 | Noisy validation set | 4 | S4.1, S1.5 | pending |
 | S4.3 | Retrain with augmented data | 4 | S4.1, S3.1 | pending |
 | S5.1 | Post-processing corrections | 5 | S3.3 | pending |
