@@ -100,11 +100,11 @@ Development is split into 5 phases. Each phase produces a submittable solution â
 - Preprocess: resample to 16kHz, normalize transcripts, filter 1â€“30s duration
 - Full fine-tune whisper-small on Kaggle T4:
   - Learning rate: 1e-5, warmup 500 steps
-  - Batch: per_device=2, gradient_accumulation=8 (effective=16)
+  - Batch: per_device=8, gradient_accumulation=4 (effective=32/GPU)
   - fp16, gradient checkpointing enabled
   - SpecAugment ON (mask_time_prob=0.05, mask_feature_prob=0.04)
   - 3 epochs with early stopping on val WER
-  - ~6 hours total training time
+  - ~10-12 hours with 30% data subset on T4x2
 - Save checkpoint to HuggingFace Hub (private repo)
 - Submit with fine-tuned whisper-small
 - **Expected WER**: ~0.15â€“0.20
@@ -116,8 +116,8 @@ Development is split into 5 phases. Each phase produces a submittable solution â
 - Load `openai/whisper-large-v3` in INT8 via `bitsandbytes`
 - Apply LoRA: r=32, alpha=64, target_modules=["q_proj", "v_proj"]
 - Training on Kaggle T4 (~8 GB VRAM with INT8+LoRA):
-  - Learning rate: 1e-3 (higher for LoRA, frozen base)
-  - Batch: per_device=1, gradient_accumulation=16
+  - Learning rate: 1e-4 (higher for LoRA, frozen base)
+  - Batch: per_device=2, gradient_accumulation=8 (effective=16/GPU)
   - fp16, gradient checkpointing
   - SpecAugment ON
   - 1,500â€“2,000 steps with early stopping
@@ -207,7 +207,26 @@ def get_augmentation(noise_dir, realclass_dir):
     ])
 ```
 
-### 4.3 Validation Split Strategy
+### 4.3 Stratified Data Subsetting
+
+The full dataset (228k utterances) is too large for a single Kaggle T4x2 session (~67 hours). A stratified subset is applied before the train/val split:
+
+```python
+# In configs/training_config.yaml
+data_subset:
+  fraction: 0.3   # 30% of data = ~68k samples (~10-12 hrs on T4x2)
+  seed: 42
+```
+
+Subsetting works at the **child_id level** to prevent data leakage:
+1. Group all utterances by `child_id`
+2. Group children by `age_bucket`
+3. Sample `fraction` of children from each age bucket (min 1 per bucket)
+4. Include all utterances from selected children
+
+This preserves the age distribution while reducing training time proportionally. Set `fraction: 1.0` to use the full dataset for final submissions.
+
+### 4.4 Validation Split Strategy
 
 ```
 Split by child_id (no speaker leakage):
@@ -277,10 +296,10 @@ from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
     output_dir="./checkpoints",
-    per_device_train_batch_size=2,     # 1 for large-v3
-    per_device_eval_batch_size=4,
-    gradient_accumulation_steps=8,      # 16 for large-v3
-    learning_rate=1e-5,                 # 1e-3 for LoRA
+    per_device_train_batch_size=8,     # 2 for large-v3
+    per_device_eval_batch_size=8,      # 4 for large-v3
+    gradient_accumulation_steps=4,      # 8 for large-v3
+    learning_rate=1e-5,                 # 1e-4 for LoRA
     warmup_steps=500,
     num_train_epochs=3,
     fp16=True,
@@ -297,7 +316,7 @@ training_args = Seq2SeqTrainingArguments(
     push_to_hub=True,                   # persist across sessions
     hub_model_id="nishantgaurav23/pasketti-whisper-lora",
     hub_private_repo=True,
-    dataloader_num_workers=2,
+    dataloader_num_workers=4,
     optim="adamw_8bit",                 # halves optimizer memory
     gradient_checkpointing=True,
 )

@@ -47,15 +47,16 @@ def config_file(tmp_path):
             "learning_rate": 1.0e-5,
             "warmup_steps": 500,
             "num_train_epochs": 3,
-            "per_device_train_batch_size": 2,
-            "per_device_eval_batch_size": 4,
-            "gradient_accumulation_steps": 8,
+            "per_device_train_batch_size": 8,
+            "per_device_eval_batch_size": 8,
+            "gradient_accumulation_steps": 4,
             "fp16": True,
             "gradient_checkpointing": True,
             "eval_steps": 500,
             "save_steps": 500,
             "save_total_limit": 3,
             "generation_max_length": 225,
+            "dataloader_num_workers": 4,
             "hub_model_id": "test-user/test-whisper-small",
             "hub_private_repo": True,
         },
@@ -116,7 +117,7 @@ class TestLoadTrainingConfig:
         config = load_training_config(str(config_file))
         # whisper_small section values should be present
         assert config["warmup_steps"] == 500
-        assert config["per_device_train_batch_size"] == 2
+        assert config["per_device_train_batch_size"] == 8
 
     def test_missing_config_raises(self):
         from src.train_whisper_small import load_training_config
@@ -257,15 +258,16 @@ class TestSetupTrainingArgs:
             "learning_rate": 1e-5,
             "warmup_steps": 500,
             "num_train_epochs": 3,
-            "per_device_train_batch_size": 2,
-            "per_device_eval_batch_size": 4,
-            "gradient_accumulation_steps": 8,
+            "per_device_train_batch_size": 8,
+            "per_device_eval_batch_size": 8,
+            "gradient_accumulation_steps": 4,
             "fp16": True,
             "gradient_checkpointing": True,
             "eval_steps": 500,
             "save_steps": 500,
             "save_total_limit": 3,
             "generation_max_length": 225,
+            "dataloader_num_workers": 4,
             "hub_model_id": "test-user/test-whisper-small",
             "hub_private_repo": True,
         }
@@ -276,8 +278,8 @@ class TestSetupTrainingArgs:
         assert args.learning_rate == 1e-5
         assert args.warmup_steps == 500
         assert args.num_train_epochs == 3
-        assert args.per_device_train_batch_size == 2
-        assert args.gradient_accumulation_steps == 8
+        assert args.per_device_train_batch_size == 8
+        assert args.gradient_accumulation_steps == 4
         assert args.predict_with_generate is True
         assert args.push_to_hub is False
 
@@ -288,15 +290,16 @@ class TestSetupTrainingArgs:
             "learning_rate": 1e-5,
             "warmup_steps": 500,
             "num_train_epochs": 3,
-            "per_device_train_batch_size": 2,
-            "per_device_eval_batch_size": 4,
-            "gradient_accumulation_steps": 8,
+            "per_device_train_batch_size": 8,
+            "per_device_eval_batch_size": 8,
+            "gradient_accumulation_steps": 4,
             "fp16": True,
             "gradient_checkpointing": True,
             "eval_steps": 500,
             "save_steps": 500,
             "save_total_limit": 3,
             "generation_max_length": 225,
+            "dataloader_num_workers": 4,
             "hub_model_id": "test-user/test-whisper-small",
             "hub_private_repo": True,
         }
@@ -435,15 +438,16 @@ class TestHubPushDisabled:
             "learning_rate": 1e-5,
             "warmup_steps": 500,
             "num_train_epochs": 3,
-            "per_device_train_batch_size": 2,
-            "per_device_eval_batch_size": 4,
-            "gradient_accumulation_steps": 8,
+            "per_device_train_batch_size": 8,
+            "per_device_eval_batch_size": 8,
+            "gradient_accumulation_steps": 4,
             "fp16": True,
             "gradient_checkpointing": True,
             "eval_steps": 500,
             "save_steps": 500,
             "save_total_limit": 3,
             "generation_max_length": 225,
+            "dataloader_num_workers": 4,
             "hub_model_id": "test-user/test-whisper-small",
             "hub_private_repo": True,
         }

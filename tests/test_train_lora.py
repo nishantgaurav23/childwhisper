@@ -40,12 +40,12 @@ def config_path(tmp_path):
         },
         "whisper_large_v3": {
             "model_name": "openai/whisper-large-v3",
-            "learning_rate": 1.0e-3,
+            "learning_rate": 1.0e-4,
             "warmup_steps": 500,
             "num_train_epochs": 3,
-            "per_device_train_batch_size": 1,
+            "per_device_train_batch_size": 2,
             "per_device_eval_batch_size": 4,
-            "gradient_accumulation_steps": 16,
+            "gradient_accumulation_steps": 8,
             "fp16": True,
             "gradient_checkpointing": True,
             "load_in_8bit": True,
@@ -53,6 +53,7 @@ def config_path(tmp_path):
             "save_steps": 500,
             "save_total_limit": 3,
             "generation_max_length": 225,
+            "dataloader_num_workers": 4,
             "hub_model_id": "nishantgaurav23/pasketti-whisper-lora",
             "hub_private_repo": True,
             "lora": {
@@ -116,7 +117,7 @@ class TestLoadLoraConfig:
 
         # From whisper_large_v3 section
         assert config["model_name"] == "openai/whisper-large-v3"
-        assert config["learning_rate"] == 1e-3
+        assert config["learning_rate"] == 1e-4
         assert config["load_in_8bit"] is True
         assert config["lora"]["r"] == 32
         assert config["lora"]["alpha"] == 64
@@ -281,9 +282,9 @@ class TestSetupTrainingArgs:
 
         args = setup_training_args(config, output_dir="/tmp/test", push_to_hub=False)
 
-        assert args.learning_rate == 1e-3
-        assert args.per_device_train_batch_size == 1
-        assert args.gradient_accumulation_steps == 16
+        assert args.learning_rate == 1e-4
+        assert args.per_device_train_batch_size == 2
+        assert args.gradient_accumulation_steps == 8
         assert args.predict_with_generate is True
         assert args.load_best_model_at_end is True
         assert args.metric_for_best_model == "wer"

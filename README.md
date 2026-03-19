@@ -77,7 +77,7 @@ childwhisper/
 
 ## Training
 
-All training runs on **free GPU tiers** (Kaggle T4 30hrs/wk + Colab T4):
+All training runs on **free GPU tiers** (Kaggle T4x2 30hrs/wk + Colab T4):
 
 ```bash
 # Whisper-small full fine-tune
@@ -91,7 +91,26 @@ python src/train_whisper_lora.py \
   --metadata-path data/train_word_transcripts.jsonl \
   --audio-dir data/audio/ \
   --dry-run
+
+# Use a data subset for faster iteration (override config)
+python src/train_whisper_small.py \
+  --metadata-path data/train_word_transcripts.jsonl \
+  --audio-dir data/audio/ \
+  --subset-fraction 0.3
 ```
+
+### Training Time Optimization
+
+The full dataset (228k utterances) takes ~67 hours on T4x2. To fit within a single Kaggle session, the following optimizations are applied by default:
+
+| Optimization | Effect |
+|-------------|--------|
+| **30% stratified data subset** | Trains on ~68k samples (stratified by age_bucket, grouped by child_id — no leakage) |
+| **Larger batch sizes** | Whisper-small: 8/GPU (was 2), LoRA: 2/GPU (was 1) |
+| **Lower gradient accumulation** | Whisper-small: 4 (was 8), LoRA: 8 (was 16) |
+| **More dataloader workers** | 4 (was 2) |
+
+Set `data_subset.fraction: 1.0` in `configs/training_config.yaml` to use the full dataset.
 
 ## Validation
 
@@ -108,9 +127,9 @@ Spec-driven TDD with 5 phases:
 |-------|--------|-------------|
 | 1. Project Setup & Baseline | Done | Zero-shot submission, local validation |
 | 2. Whisper-small Fine-Tune | Done | Full fine-tune, WER ~0.15-0.20 |
-| 3. Whisper-large-v3 LoRA | In Progress | LoRA adapter, ensemble inference |
-| 4. Noise Augmentation | Pending | Classroom noise robustness |
-| 5. Optimizations & Polish | Pending | Final WER squeeze |
+| 3. Whisper-large-v3 LoRA | Done | LoRA adapter, ensemble inference |
+| 4. Noise Augmentation | Done | Classroom noise robustness |
+| 5. Optimizations & Polish | Done | Training time optimization, data subsetting |
 
 ## Tech Stack
 

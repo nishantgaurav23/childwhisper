@@ -27,12 +27,16 @@ from transformers import (
 
 try:
     from src.augment import create_augmentation
-    from src.dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from src.dataset import (
+        WhisperDataset, WhisperDataCollator, create_train_val_split, stratified_subset,
+    )
     from src.evaluate import compute_wer
     from src.preprocess import load_metadata
 except ModuleNotFoundError:
     from augment import create_augmentation
-    from dataset import WhisperDataset, WhisperDataCollator, create_train_val_split
+    from dataset import (
+        WhisperDataset, WhisperDataCollator, create_train_val_split, stratified_subset,
+    )
     from evaluate import compute_wer
     from preprocess import load_metadata
 
@@ -106,6 +110,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--hub-model-id", type=str, default=None,
         help="Override HuggingFace Hub model ID",
+    )
+    parser.add_argument(
+        "--subset-fraction", type=float, default=None,
+        help="Override data subset fraction (0.0-1.0, default from config)",
     )
     args = parser.parse_args(argv)
     args.push_to_hub = not args.no_push_to_hub
@@ -227,7 +235,7 @@ def setup_training_args(
         "predict_with_generate": True,
         "generation_max_length": config.get("generation_max_length", 225),
         "logging_steps": config.get("logging_steps", 50),
-        "dataloader_num_workers": config.get("dataloader_num_workers", 2),
+        "dataloader_num_workers": config.get("dataloader_num_workers", 4),
         "push_to_hub": push_to_hub,
         "remove_unused_columns": False,
     }
@@ -278,8 +286,21 @@ def build_datasets(
     audio_dir: str,
     augment_fn=None,
 ) -> tuple:
-    """Build train and val WhisperDatasets with child_id split."""
+    """Build train and val WhisperDatasets with child_id split and optional subsetting."""
     metadata = load_metadata(metadata_path)
+
+    # Apply stratified subset before train/val split
+    subset_cfg = config.get("data_subset", {})
+    fraction = subset_cfg.get("fraction", 1.0)
+    if fraction < 1.0:
+        metadata = stratified_subset(
+            metadata,
+            fraction=fraction,
+            split_by=config.get("validation", {}).get("split_by", "child_id"),
+            stratify_by=config.get("validation", {}).get("stratify_by", "age_bucket"),
+            seed=subset_cfg.get("seed", 42),
+        )
+        logger.info("Data subset: %d samples (%.0f%%)", len(metadata), fraction * 100)
 
     val_cfg = config.get("validation", {})
     train_meta, val_meta = create_train_val_split(
@@ -341,6 +362,8 @@ def main(argv: list[str] | None = None) -> float:
         config["num_train_epochs"] = args.num_train_epochs
     if args.hub_model_id is not None:
         config["hub_model_id"] = args.hub_model_id
+    if args.subset_fraction is not None:
+        config.setdefault("data_subset", {})["fraction"] = args.subset_fraction
 
     # Setup augmentation
     augment_fn = create_augment_fn(

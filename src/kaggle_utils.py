@@ -16,6 +16,16 @@ from huggingface_hub import HfApi, login, snapshot_download
 
 logger = logging.getLogger(__name__)
 
+# Default Kaggle dataset base path — try both standard and datasets/username/ layouts
+_KAGGLE_BASE_CANDIDATES = [
+    Path("/kaggle/input/pasketti-audio"),
+    Path("/kaggle/input/datasets/nishantgaurav23/pasketti-audio"),
+]
+KAGGLE_DATASET_BASE = next(
+    (p for p in _KAGGLE_BASE_CANDIDATES if p.exists()),
+    _KAGGLE_BASE_CANDIDATES[0],  # default if none exist
+)
+
 
 def is_kaggle() -> bool:
     """Detect if running inside a Kaggle kernel."""
@@ -24,20 +34,148 @@ def is_kaggle() -> bool:
     return Path("/kaggle/working").exists()
 
 
-def get_kaggle_paths(dataset_slug: str) -> dict[str, Path]:
-    """Return standard paths for a Kaggle dataset.
+_unify_cache: dict[str, Path] = {}
+
+
+def unify_kaggle_audio(
+    dataset_base: Path | None = None,
+    unified_dir: Path | None = None,
+) -> Path:
+    """Symlink split audio_part_*/audio/ files into a single unified directory.
+
+    Kaggle dataset has audio split across audio_part_0/, audio_part_1/, etc.
+    The JSONL metadata references paths like "audio/U_*.flac". This function
+    creates /kaggle/working/unified_audio/audio/ with symlinks to all files
+    so the existing code works unchanged.
+
+    Results are cached so repeated calls return instantly.
 
     Args:
-        dataset_slug: Kaggle dataset slug (e.g. "pasketti-word-audio").
+        dataset_base: Base path of the Kaggle dataset.
+        unified_dir: Where to create the unified directory.
 
     Returns:
-        Dict with audio_dir, metadata_path, output_dir.
+        The unified base directory (use as audio_dir parent).
     """
-    base = Path(f"/kaggle/input/{dataset_slug}")
+    if dataset_base is None:
+        dataset_base = KAGGLE_DATASET_BASE
+    if unified_dir is None:
+        unified_dir = Path("/kaggle/working/unified_audio")
+
+    cache_key = f"{dataset_base}:{unified_dir}"
+    if cache_key in _unify_cache:
+        return _unify_cache[cache_key]
+
+    audio_out = unified_dir / "audio"
+    audio_out.mkdir(parents=True, exist_ok=True)
+
+    # Symlink audio files from all audio_part_* directories
+    part_dirs = sorted(dataset_base.glob("audio_part_*/audio"))
+    count = 0
+    for part_dir in part_dirs:
+        for f in part_dir.iterdir():
+            link = audio_out / f.name
+            if not link.exists():
+                link.symlink_to(f)
+                count += 1
+
+    # Also check for audio/audio/ (non-split layout)
+    flat_dir = dataset_base / "audio" / "audio"
+    if flat_dir.is_dir():
+        for f in flat_dir.iterdir():
+            link = audio_out / f.name
+            if not link.exists():
+                link.symlink_to(f)
+                count += 1
+
+    logger.info("Unified %d audio files into %s", count, audio_out)
+    _unify_cache[cache_key] = unified_dir
+    return unified_dir
+
+
+_noise_cache: dict[str, dict[str, Path | None]] = {}
+
+
+def get_kaggle_noise_paths(
+    dataset_base: Path | None = None,
+) -> dict[str, Path | None]:
+    """Return paths to noise and MUSAN directories on Kaggle.
+
+    Results are cached so repeated calls return instantly.
+
+    Args:
+        dataset_base: Base path of the Kaggle dataset.
+
+    Returns:
+        Dict with noise_dir (unified from noise_part_*) and musan_dir.
+    """
+    if dataset_base is None:
+        dataset_base = KAGGLE_DATASET_BASE
+
+    cache_key = str(dataset_base)
+    if cache_key in _noise_cache:
+        return _noise_cache[cache_key]
+
+    # Unify noise_part_* into a single directory
+    noise_parts = sorted(dataset_base.glob("noise_part_*/audio"))
+    noise_dir = None
+    if noise_parts:
+        noise_out = Path("/kaggle/working/unified_noise")
+        noise_out.mkdir(parents=True, exist_ok=True)
+        for part_dir in noise_parts:
+            for f in part_dir.iterdir():
+                link = noise_out / f.name
+                if not link.exists():
+                    link.symlink_to(f)
+        noise_dir = noise_out
+        logger.info("Unified noise files into %s", noise_out)
+
+    # MUSAN is not split
+    musan_dir = dataset_base / "musan" / "musan"
+    if not musan_dir.is_dir():
+        musan_dir = None
+
+    result = {"noise_dir": noise_dir, "musan_dir": musan_dir}
+    _noise_cache[cache_key] = result
+    return result
+
+
+def get_kaggle_paths(dataset_slug: str = "pasketti-audio") -> dict[str, Path]:
+    """Return standard paths for a Kaggle dataset.
+
+    Automatically unifies split audio directories into a single location.
+
+    Args:
+        dataset_slug: Kaggle dataset slug (unused when KAGGLE_DATASET_BASE exists,
+            kept for API compatibility).
+
+    Returns:
+        Dict with audio_dir, metadata_path, output_dir, noise_dir, musan_dir.
+    """
+    base = KAGGLE_DATASET_BASE
+    if not base.exists():
+        # Fallback to slug-based path
+        base = Path(f"/kaggle/input/{dataset_slug}")
+
+    # Unify split audio into a single directory
+    unified = unify_kaggle_audio(base)
+
+    # Find metadata (could be at top level, inside a part, or nested deeper)
+    metadata_path = base / "train_word_transcripts.jsonl"
+    if not metadata_path.exists():
+        for candidate in base.glob("**/train_word_transcripts.jsonl"):
+            metadata_path = candidate
+            break
+
+    # Get noise paths
+    noise_paths = get_kaggle_noise_paths(base)
+
     return {
-        "audio_dir": base / "audio",
-        "metadata_path": base / "train_word_transcripts.jsonl",
+        "audio_dir": unified,
+        "metadata_path": metadata_path,
         "output_dir": Path("/kaggle/working/checkpoints/whisper-small"),
+        "noise_dir": noise_paths["noise_dir"],
+        "musan_dir": noise_paths["musan_dir"],
     }
 
 
@@ -86,6 +224,9 @@ def get_paths(
 def setup_hub_auth() -> None:
     """Authenticate with HuggingFace Hub using HF_TOKEN env var.
 
+    Uses HF_TOKEN environment variable directly and skips the slow
+    online token validation that huggingface_hub.login() does by default.
+
     Raises:
         ValueError: If HF_TOKEN is not set.
     """
@@ -95,7 +236,11 @@ def setup_hub_auth() -> None:
             "HF_TOKEN environment variable is not set. "
             "Set it with: export HF_TOKEN=hf_your_token"
         )
-    login(token=token)
+    # Set HUGGING_FACE_HUB_TOKEN so all HF libraries pick it up without
+    # a network round-trip for validation. add_to_git_credential=False
+    # avoids slow git-credential writes on Kaggle.
+    os.environ["HUGGING_FACE_HUB_TOKEN"] = token
+    login(token=token, add_to_git_credential=False, new_session=False)
     logger.info("Authenticated with HuggingFace Hub")
 
 
@@ -183,21 +328,22 @@ def get_kaggle_training_args(
     return args
 
 
-def get_kaggle_paths_lora(dataset_slug: str) -> dict[str, Path]:
+def get_kaggle_paths_lora(dataset_slug: str = "pasketti-audio") -> dict[str, Path]:
     """Return standard paths for a Kaggle dataset with LoRA output dir.
 
+    Automatically unifies split audio directories into a single location.
+
     Args:
-        dataset_slug: Kaggle dataset slug (e.g. "pasketti-word-audio").
+        dataset_slug: Kaggle dataset slug (unused when KAGGLE_DATASET_BASE exists,
+            kept for API compatibility).
 
     Returns:
-        Dict with audio_dir, metadata_path, output_dir for LoRA training.
+        Dict with audio_dir, metadata_path, output_dir, noise_dir, musan_dir.
     """
-    base = Path(f"/kaggle/input/{dataset_slug}")
-    return {
-        "audio_dir": base / "audio",
-        "metadata_path": base / "train_word_transcripts.jsonl",
-        "output_dir": Path("/kaggle/working/checkpoints/whisper-large-v3-lora"),
-    }
+    # Reuse get_kaggle_paths and just override output_dir
+    paths = get_kaggle_paths(dataset_slug)
+    paths["output_dir"] = Path("/kaggle/working/checkpoints/whisper-large-v3-lora")
+    return paths
 
 
 def get_local_paths_lora(data_dir: str | Path) -> dict[str, Path]:

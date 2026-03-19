@@ -10,7 +10,9 @@ import numpy as np
 import pytest
 import torch
 
-from src.dataset import WhisperDataCollator, WhisperDataset, create_train_val_split
+from src.dataset import (
+    WhisperDataCollator, WhisperDataset, create_train_val_split, stratified_subset,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -404,3 +406,95 @@ class TestTrainValSplit:
         val_ratio = len(val) / total
         # Allow tolerance since we split by child_id, not by utterance
         assert 0.05 <= val_ratio <= 0.25
+
+
+# ---------------------------------------------------------------------------
+# Tests: stratified_subset
+# ---------------------------------------------------------------------------
+
+class TestStratifiedSubset:
+    def _make_metadata(self, n_children=20, utterances_per_child=5):
+        entries = []
+        age_buckets = ["3-4", "5-7", "8-11", "12+"]
+        for c in range(n_children):
+            child_id = f"child_{c}"
+            age = age_buckets[c % len(age_buckets)]
+            for u in range(utterances_per_child):
+                entries.append({
+                    "utterance_id": f"utt_{c}_{u}",
+                    "child_id": child_id,
+                    "audio_path": f"audio/utt_{c}_{u}.wav",
+                    "audio_duration_sec": 2.0,
+                    "age_bucket": age,
+                    "orthographic_text": f"word {c} {u}",
+                })
+        return entries
+
+    def test_full_fraction_returns_all(self):
+        """fraction=1.0 returns original data unchanged."""
+        metadata = self._make_metadata(n_children=20)
+        result = stratified_subset(metadata, fraction=1.0)
+        assert len(result) == len(metadata)
+
+    def test_subset_reduces_data(self):
+        """fraction=0.3 returns roughly 30% of data."""
+        metadata = self._make_metadata(n_children=40)
+        result = stratified_subset(metadata, fraction=0.3)
+        assert len(result) < len(metadata)
+        # Should be roughly 30% (within tolerance due to child grouping)
+        ratio = len(result) / len(metadata)
+        assert 0.15 <= ratio <= 0.50
+
+    def test_no_child_leakage(self):
+        """All utterances from a child are either fully included or excluded."""
+        metadata = self._make_metadata(n_children=40, utterances_per_child=10)
+        result = stratified_subset(metadata, fraction=0.3)
+
+        child_counts = {}
+        for e in result:
+            child_counts[e["child_id"]] = child_counts.get(e["child_id"], 0) + 1
+
+        # Each selected child should have exactly 10 utterances
+        for child_id, count in child_counts.items():
+            assert count == 10, f"{child_id} has {count} utterances, expected 10"
+
+    def test_preserves_age_distribution(self):
+        """Each age bucket is represented in the subset."""
+        metadata = self._make_metadata(n_children=40)
+        result = stratified_subset(metadata, fraction=0.3)
+
+        original_buckets = {e["age_bucket"] for e in metadata}
+        subset_buckets = {e["age_bucket"] for e in result}
+        assert original_buckets == subset_buckets
+
+    def test_deterministic(self):
+        """Same seed produces same subset."""
+        metadata = self._make_metadata(n_children=40)
+        r1 = stratified_subset(metadata, fraction=0.3, seed=42)
+        r2 = stratified_subset(metadata, fraction=0.3, seed=42)
+        assert [e["utterance_id"] for e in r1] == [e["utterance_id"] for e in r2]
+
+    def test_different_seeds_differ(self):
+        """Different seeds produce different subsets."""
+        metadata = self._make_metadata(n_children=40)
+        r1 = stratified_subset(metadata, fraction=0.3, seed=42)
+        r2 = stratified_subset(metadata, fraction=0.3, seed=99)
+        ids1 = {e["utterance_id"] for e in r1}
+        ids2 = {e["utterance_id"] for e in r2}
+        assert ids1 != ids2
+
+    def test_rare_bucket_keeps_at_least_one(self):
+        """A bucket with only 1 child still gets included."""
+        metadata = self._make_metadata(n_children=20)
+        # Add a rare bucket with just 1 child
+        metadata.append({
+            "utterance_id": "rare_utt",
+            "child_id": "rare_child",
+            "audio_path": "audio/rare.wav",
+            "audio_duration_sec": 2.0,
+            "age_bucket": "rare_bucket",
+            "orthographic_text": "rare",
+        })
+        result = stratified_subset(metadata, fraction=0.3)
+        rare = [e for e in result if e["age_bucket"] == "rare_bucket"]
+        assert len(rare) == 1

@@ -128,6 +128,48 @@ class WhisperDataCollator:
         return {"input_features": input_features, "labels": labels}
 
 
+def stratified_subset(
+    metadata: list[dict],
+    fraction: float,
+    split_by: str = "child_id",
+    stratify_by: str = "age_bucket",
+    seed: int = 42,
+) -> list[dict]:
+    """Select a fraction of data, stratified by age_bucket at child_id level.
+
+    Ensures:
+    - No child is split across subset/remainder (no leakage)
+    - Age bucket distribution is preserved
+    - Rare buckets always keep at least 1 child
+    """
+    if fraction >= 1.0:
+        return metadata
+
+    rng = random.Random(seed)
+
+    # Group samples by child_id
+    child_to_samples: dict[str, list[dict]] = defaultdict(list)
+    for entry in metadata:
+        child_to_samples[entry.get(split_by, "unknown")].append(entry)
+
+    # Group children by age_bucket (use first sample's bucket)
+    bucket_to_children: dict[str, list[str]] = defaultdict(list)
+    for child_id, samples in child_to_samples.items():
+        bucket = samples[0].get(stratify_by, "unknown")
+        bucket_to_children[bucket].append(child_id)
+
+    # Sample fraction of children per bucket
+    selected: list[dict] = []
+    for bucket in sorted(bucket_to_children):
+        children = bucket_to_children[bucket]
+        rng.shuffle(children)
+        n_select = max(1, round(len(children) * fraction))
+        for child_id in children[:n_select]:
+            selected.extend(child_to_samples[child_id])
+
+    return selected
+
+
 def create_train_val_split(
     metadata: list[dict],
     val_ratio: float = 0.1,
